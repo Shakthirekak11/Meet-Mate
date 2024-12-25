@@ -1,6 +1,1 @@
-flask
-python-dateutil
-upstash-redis
-python-docx
-requests
-requests-toolbelt
+Flask==3.0.3
