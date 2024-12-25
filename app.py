@@ -29,6 +29,10 @@ OUTPUT_DIR = r".\prefinal"
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory(app.static_folder, 'favicon.ico', mimetype='image/vnd.microsoft.icon')
+
 @app.route("/")
 def home():
     """
@@ -337,4 +341,4 @@ def process():
         })
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run()
