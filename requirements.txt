@@ -1,0 +1,12 @@
+flask
+python-dateutil
+upstash-redis
+python-docx
+requests
+requests-toolbelt
+openai
+google-auth
+google-auth-oauthlib
+google-api-python-client
+dateparser
+vercel-python
