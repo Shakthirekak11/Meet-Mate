@@ -28,6 +28,12 @@ mom_docx_file = "minutes_of_meeting.docx"
 transcript_file= "transcript.docx"
 
 app = Flask(__name__)
+
+# Define the folder where the files will be stored
+
+app.config['UPLOAD_FOLDER'] = 'uploads/'
+if not os.path.exists(app.config['UPLOAD_FOLDER']):
+    os.makedirs(app.config['UPLOAD_FOLDER'])
 OUTPUT_DIR = r".\prefinal"
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -213,8 +219,6 @@ def save_mom_to_docx(minutes_text):
         print(f"Error saving Minutes of Meeting to DOCX: {e}")
         return None
 
-# Define the folder where the files will be stored
-app.config['UPLOAD_FOLDER'] = 'uploads/'
 
 @app.route('/download_transcript')
 def download_transcript():
@@ -233,9 +237,7 @@ def download_minutes():
     return "Failed to generate minutes of meeting file", 500
 
 
-app.config['UPLOAD_FOLDER'] = 'uploads/'
-if not os.path.exists(app.config['UPLOAD_FOLDER']):
-    os.makedirs(app.config['UPLOAD_FOLDER'])
+
 
 
 @app.route('/upload', methods=['POST'])
