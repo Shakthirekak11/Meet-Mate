@@ -9,7 +9,7 @@ from flask import Flask, send_from_directory
 import re
 from upstash_redis import Redis
 from docx import Document
-from pydub import AudioSegment
+
 
 UPSTASH_REDIS_REST_TOKEN = os.getenv("UPSTASH_REDIS_REST_TOKEN")
 SUBSCRIPTION_KEY = os.getenv("SUBSCRIPTION_KEY_1")
