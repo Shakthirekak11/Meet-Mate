@@ -265,7 +265,7 @@ def process():
         # Handle file upload
         uploaded_file = request.files.get('file')
         if uploaded_file:
-            save_path = os.path.join(UPLOAD_FOLDER, uploaded_file.filename)
+            save_path = os.path.join(app.config['UPLOAD_FOLDER'], uploaded_file.filename)
             uploaded_file.save(save_path)
             return jsonify({
                 "message": "File uploaded and saved successfully.",
