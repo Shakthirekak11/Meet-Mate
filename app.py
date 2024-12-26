@@ -232,10 +232,11 @@ def download_minutes():
         return send_from_directory(app.config['UPLOAD_FOLDER'], "minutes_of_meeting.docx", as_attachment=True)
     return "Failed to generate minutes of meeting file", 500
 
-# Ensure uploads directory exists
-UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
+
+app.config['UPLOAD_FOLDER'] = 'uploads/'
+if not os.path.exists(app.config['UPLOAD_FOLDER']):
+    os.makedirs(app.config['UPLOAD_FOLDER'])
+
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -255,7 +256,7 @@ def upload_file():
             meeting_info_json = json.dumps(meeting_info)
             return redirect(url_for('home', meeting_info=meeting_info_json))
     
-    # Check if a file path is provided
+    # Check if a file path is provided (for example, for testing or other purposes)
     file_path = request.form.get("file_path")
     if file_path and os.path.exists(file_path):
         meeting_info = process_audio_file(file_path)
@@ -263,6 +264,7 @@ def upload_file():
         return redirect(url_for('home', meeting_info=meeting_info_json))
 
     return jsonify({"error": "No valid file or file path provided"}), 400
+
 
 def process_audio_file(file_path):
     """
