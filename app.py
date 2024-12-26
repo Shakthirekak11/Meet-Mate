@@ -9,7 +9,7 @@ from flask import Flask, send_from_directory
 import re
 from upstash_redis import Redis
 from docx import Document
-
+from pydub import AudioSegment
 
 UPSTASH_REDIS_REST_TOKEN = os.getenv("UPSTASH_REDIS_REST_TOKEN")
 SUBSCRIPTION_KEY = os.getenv("SUBSCRIPTION_KEY_1")
@@ -65,6 +65,42 @@ def home():
         }
 
     return render_template("index.html", meeting_info=meeting_info)
+
+
+
+def chunk_audio(file_path, max_chunk_size_mb=3):
+    """
+    Split the audio file into chunks of MP3 format, ensuring each chunk does not exceed max_chunk_size_mb.
+    
+    :param file_path: Path to the input audio file (MP3 format).
+    :param max_chunk_size_mb: The maximum size for each chunk in MB (default: 3MB).
+    :return: List of filenames of the generated chunks.
+    """
+    # Load the audio file (MP3 format)
+    audio = AudioSegment.from_file(file_path, format="mp3")
+    
+    # Convert MB to bytes
+    max_chunk_size_bytes = max_chunk_size_mb * 1024 * 1024  # Convert MB to bytes
+
+    # Estimate the size of a 1ms chunk
+    chunk = audio[:1]  # Take the first 1ms of the audio
+    estimated_size_per_ms = len(chunk.raw_data) / len(chunk)  # Bytes per millisecond
+
+    # Calculate the chunk duration in milliseconds based on the max chunk size in bytes
+    chunk_duration_ms = max_chunk_size_bytes // estimated_size_per_ms
+
+    # List to store the chunk filenames
+    chunks = []
+
+    # Split the audio into chunks and save them as MP3
+    for i in range(0, len(audio), chunk_duration_ms):
+        chunk = audio[i:i + chunk_duration_ms]
+        chunk_filename = f"chunk_{i // chunk_duration_ms}.mp3"
+        chunk.export(chunk_filename, format="mp3")  # Save each chunk as MP3
+        chunks.append(chunk_filename)
+
+    return chunks
+
 
 def parse_minutes(minutes_text):
     """
@@ -269,21 +305,43 @@ def upload_file():
     return jsonify({"error": "No valid file or file path provided"}), 400
 
 
+
+
 def process_audio_file(file_path):
-    """
-    Process the uploaded audio file and generate meeting details.
-    """
     try:
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"The file at {file_path} does not exist.")
         
-        # Run the external script to process the file
-        subprocess.run(["python", "diarize_MOM.py", file_path])
+        # Chunk the audio file into 3MB chunks
+        chunked_files = chunk_audio(file_path, max_chunk_size_mb=3)
+        
+        # Reassemble the chunks into a single audio file
+        combined_audio = AudioSegment.empty()  # Start with an empty audio segment
+        
+        for chunk_file in chunked_files:
+            chunk_audio = AudioSegment.from_file(chunk_file, format="mp3")
+            combined_audio += chunk_audio  # Concatenate each chunk
+        
+        # Save the combined audio file
+        combined_file_path = "combined_audio.mp3"
+        combined_audio.export(combined_file_path, format="mp3")
+        
+        # Process the combined audio file (e.g., diarization)
+        subprocess.run(["python", "diarize_MOM.py", combined_file_path])  # Process the reassembled file
         meeting_info = get_meeting_info_from_redis()
+        
+        # Clean up chunk files after processing
+        for chunk_file in chunked_files:
+            os.remove(chunk_file)  # Delete each chunk after processing
+        
+        # Return the meeting information
         return meeting_info
     except Exception as e:
         logging.error(f"Error processing audio file: {e}")
         return {"error": f"Error processing audio file: {str(e)}"}
+
+
+
 
 @app.route('/schedule', methods=['GET', 'POST'])
 def schedule_meeting():
