@@ -9,6 +9,8 @@ from flask import Flask, send_from_directory
 import re
 from upstash_redis import Redis
 from docx import Document
+from dotenv import load_dotenv
+load_dotenv()
 
 
 UPSTASH_REDIS_REST_TOKEN = os.getenv("UPSTASH_REDIS_REST_TOKEN")
@@ -22,31 +24,22 @@ if not UPSTASH_REDIS_REST_TOKEN or not SUBSCRIPTION_KEY or not OPENAI_API_KEY:
 UPSTASH_REDIS_REST_URL = os.getenv("UPSTASH_REDIS_REST_URL", "https://fine-swift-52766.upstash.io")
 redis_client = Redis(url=UPSTASH_REDIS_REST_URL, token=UPSTASH_REDIS_REST_TOKEN)
 
-
 # Example file URLs (replace with your actual URLs)
 mom_docx_file = "minutes_of_meeting.docx"
 transcript_file= "transcript.docx"
 
 app = Flask(__name__)
-
-# Define the folder where the files will be stored
-
-
-app.config['UPLOAD_FOLDER'] = '/tmp/uploads/'
-if not os.path.exists(app.config['UPLOAD_FOLDER']):
-    os.makedirs(app.config['UPLOAD_FOLDER'])
-OUTPUT_DIR = r".\prefinal"
+OUTPUT_DIR = r".\meeting assistant ai"
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
-@app.route('/favicon.ico')
-def favicon():
-    return send_from_directory(app.static_folder, 'favicon.ico', mimetype='image/vnd.microsoft.icon')
+
 @app.route("/")
 def home():
     """
     Render the home page with initial or processed meeting information.
     """
     meeting_info_json = request.args.get('meeting_info', default=None)
+
     if meeting_info_json:
         # Deserialize the JSON string into a dictionary
         meeting_info = json.loads(meeting_info_json)
@@ -60,7 +53,9 @@ def home():
             "follow_ups": " ",
             "action_items": " ",
         }
+
     return render_template("index.html", meeting_info=meeting_info)
+
 def parse_minutes(minutes_text):
     """
     Parse the minutes of meeting text file into structured data.
@@ -96,10 +91,13 @@ def parse_minutes(minutes_text):
                     break
                 follow_ups.append(lines[j].strip())
             meetinginfo["follow_ups"] = "\n".join(follow_ups)
+
     return meetinginfo
+
 num_of_attendees=redis_client.get('num_attendees')
 diarized_text=redis_client.get('diarised-output')
 minutes_text=redis_client.get('minutes_of_meeting')
+
 def get_meeting_info_from_redis():
     """
     Retrieve the meeting information from Redis and return it as a dictionary.
@@ -122,24 +120,28 @@ def get_meeting_info_from_redis():
     }
     redis_client.delete('meeting_link')
     return meeting_info
+
 def save_transcript_to_docx(content):
     try:
         path = os.path.join(app.config['UPLOAD_FOLDER'], "transcript.docx")
         doc = Document()
         doc.add_heading("MeetMate", level=1)
         doc.add_heading("Meeting Transcript", level=2)
+
         doc.add_paragraph(content)
         doc.save(path)
         return path  # Return the file path for download
     except Exception as e:
         print(f"Error saving Meeting Transcript to DOCX: {e}")
         return None
+
 def save_mom_to_docx(minutes_text):
     try:
         path = os.path.join(app.config['UPLOAD_FOLDER'], "minutes_of_meeting.docx")
         doc = Document()
         doc.add_heading("MeetMate", level=1)
         doc.add_heading("Meeting Minutes", level=2)
+
         # Process the MOM text into sections
         sections = {
             "Title": "",
@@ -151,6 +153,7 @@ def save_mom_to_docx(minutes_text):
             "Call to Action": "",
             "Follow-Ups": ""
         }
+
         # Parse sections based on known headings
         current_heading = None
         for line in minutes_text.split("\n"):
@@ -179,26 +182,37 @@ def save_mom_to_docx(minutes_text):
                     sections[current_heading].append(line)
                 elif current_heading:
                     sections[current_heading] += " " + line
+
         # Add parsed content to the document
         doc.add_heading(f"Title: {sections['Title']}", level=3)
         doc.add_paragraph(f"Date Time: {sections['Date Time']}")
         doc.add_paragraph(f"No of Attendees: {sections['No of Attendees']}")
+
         doc.add_heading("Short Summary", level=3)
         doc.add_paragraph(sections["Short Summary"])
+
         doc.add_heading("Discussed Points", level=3)
         for point in sections["Discussed Points"]:
             doc.add_paragraph(point, style="Normal")
+
         doc.add_heading("Detailed Speaker-wise Contribution & Conversation", level=3)
         doc.add_paragraph(sections["Detailed Speaker-wise Contribution & Conversation"])
+
         doc.add_heading("Call to Action", level=3)
         doc.add_paragraph(sections["Call to Action"])
+
         doc.add_heading("Follow-Ups", level=3)
         doc.add_paragraph(sections["Follow-Ups"])
         doc.save(path)
         return path  # Return the file path for download
+
     except Exception as e:
         print(f"Error saving Minutes of Meeting to DOCX: {e}")
         return None
+
+# Define the folder where the files will be stored
+app.config['UPLOAD_FOLDER'] = '/tmp/uploads/'
+
 @app.route('/download_transcript')
 def download_transcript():
     diarized_text = redis_client.get('diarised-output') or "Transcript not available"
@@ -206,6 +220,7 @@ def download_transcript():
     if file_path:
         return send_from_directory(app.config['UPLOAD_FOLDER'], "transcript.docx", as_attachment=True)
     return "Failed to generate transcript file", 500
+
 @app.route('/download_minutes')
 def download_minutes():
     minutes_text = redis_client.get('minutes_of_meeting') or "Minutes of Meeting not available"
@@ -213,6 +228,12 @@ def download_minutes():
     if file_path:
         return send_from_directory(app.config['UPLOAD_FOLDER'], "minutes_of_meeting.docx", as_attachment=True)
     return "Failed to generate minutes of meeting file", 500
+
+# Ensure uploads directory exists
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+
 @app.route('/upload', methods=['POST'])
 def upload_file():
     """
@@ -223,6 +244,7 @@ def upload_file():
         file = request.files["audio_file"]
         if file.filename == "":
             return jsonify({"error": "No selected file"}), 400
+
         if file:
             file_path = os.path.join(app.config["UPLOAD_FOLDER"], file.filename)
             file.save(file_path)
@@ -230,13 +252,15 @@ def upload_file():
             meeting_info_json = json.dumps(meeting_info)
             return redirect(url_for('home', meeting_info=meeting_info_json))
     
-    # Check if a file path is provided (for example, for testing or other purposes)
+    # Check if a file path is provided
     file_path = request.form.get("file_path")
     if file_path and os.path.exists(file_path):
         meeting_info = process_audio_file(file_path)
         meeting_info_json = json.dumps(meeting_info)
         return redirect(url_for('home', meeting_info=meeting_info_json))
+
     return jsonify({"error": "No valid file or file path provided"}), 400
+
 def process_audio_file(file_path):
     """
     Process the uploaded audio file and generate meeting details.
@@ -252,6 +276,7 @@ def process_audio_file(file_path):
     except Exception as e:
         logging.error(f"Error processing audio file: {e}")
         return {"error": f"Error processing audio file: {str(e)}"}
+
 @app.route('/schedule', methods=['GET', 'POST'])
 def schedule_meeting():
     if request.method == 'POST':
@@ -259,22 +284,26 @@ def schedule_meeting():
         meeting_details = request.form['details']
         return f"Meeting scheduled: {meeting_details}"
     return render_template('schedule.html')
+
 @app.route('/process', methods=['POST'])
 def process():
     try:
         # Handle file upload
         uploaded_file = request.files.get('file')
         if uploaded_file:
-            save_path = os.path.join(app.config['UPLOAD_FOLDER'], uploaded_file.filename)
+            save_path = os.path.join(UPLOAD_FOLDER, uploaded_file.filename)
             uploaded_file.save(save_path)
+
             return jsonify({
                 "message": "File uploaded and saved successfully.",
                 "file_path": save_path,
                 "status": "success"
             })
+
         # Handle other processing logic (e.g., running a script)
         current_dir = os.path.dirname(os.path.abspath(__file__))
         script_path = os.path.join(current_dir, "diarize_MOM.py")
+
         # Check if script exists
         if not os.path.exists(script_path):
             return jsonify({
@@ -282,6 +311,7 @@ def process():
                 "error": f"Path '{script_path}' does not exist.",
                 "status": "error"
             })
+
         # Run the test.py script
         logging.debug(f"Running script at {script_path}")
         result = subprocess.run(
@@ -289,6 +319,7 @@ def process():
             capture_output=True,
             text=True
         )
+
         if result.returncode == 0:
             return jsonify({
                 "message": "Script executed successfully!",
@@ -308,5 +339,6 @@ def process():
             "error": str(e),
             "status": "error"
         })
+
 if __name__ == '__main__':
-    app.run()
+    app.run(debug=True)
