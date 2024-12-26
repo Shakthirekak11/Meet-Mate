@@ -31,7 +31,8 @@ app = Flask(__name__)
 
 # Define the folder where the files will be stored
 
-app.config['UPLOAD_FOLDER'] = 'uploads/'
+# Use a temporary directory for file uploads
+app.config['UPLOAD_FOLDER'] = '/tmp/uploads/
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
     os.makedirs(app.config['UPLOAD_FOLDER'])
 OUTPUT_DIR = r".\prefinal"
